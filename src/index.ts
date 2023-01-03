@@ -124,6 +124,10 @@ export class TrainStream<
     this.callback = trainOpts.callback;
   }
 
+  write(data: Parameters<Network['addFormat']>[0]): void {
+    this.writable.write(data);
+  }
+
   endInputs(): void {
     this.writable.write(false);
   }

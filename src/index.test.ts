@@ -34,7 +34,7 @@ describe('TrainStream', () => {
        */
       function floodCallback(): void {
         for (let i = data.length - 1; i >= 0; i--) {
-          trainStream.writable.write(data[i]);
+          trainStream.write(data[i]);
         }
 
         trainStream.endInputs();
