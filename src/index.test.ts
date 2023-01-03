@@ -1,11 +1,12 @@
 import { TrainStream, ITrainStreamNetwork } from './index';
 
-import { NeuralNetwork, recurrent } from 'brain.js';
+import { NeuralNetwork, recurrent, utilities } from 'brain.js';
 import { INumberHash } from 'brain.js/dist/src/lookup';
 import { INeuralNetworkDatum } from 'brain.js/dist/src/neural-network';
 import { INeuralNetworkState } from 'brain.js/dist/src/neural-network-types';
 
-const { LSTMTimeStep } = recurrent;
+const { DataFormatter } = utilities;
+const { LSTMTimeStep, LSTM } = recurrent;
 
 describe('TrainStream', () => {
   const wiggle = 0.1;
@@ -18,7 +19,7 @@ describe('TrainStream', () => {
       Network['trainOpts']
       >
     >(
-    net: Network,
+    neuralNetwork: Network,
     opts: {
       data: Array<Parameters<Network['addFormat']>[0]>;
       errorThresh?: number;
@@ -27,13 +28,13 @@ describe('TrainStream', () => {
   ): Promise<INeuralNetworkState> {
     const { data } = opts;
 
-    return await new Promise((resolve) => {
+    return await new Promise((doneTrainingCallback) => {
       /**
        * Every time you finish an epoch of flood call `trainStream.endInputs()`
        */
-      function flood(): void {
+      function floodCallback(): void {
         for (let i = data.length - 1; i >= 0; i--) {
-          trainStream.write(data[i]);
+          trainStream.writable.write(data[i]);
         }
 
         trainStream.endInputs();
@@ -41,15 +42,15 @@ describe('TrainStream', () => {
 
       const trainStream = new TrainStream({
         ...opts,
-        neuralNetwork: net,
-        floodCallback: flood,
-        doneTrainingCallback: resolve,
+        neuralNetwork,
+        floodCallback,
+        doneTrainingCallback,
       });
 
       /**
        * kick off the stream
        */
-      flood();
+      floodCallback();
     });
   }
 
@@ -95,24 +96,21 @@ describe('TrainStream', () => {
         return maxKey;
       }
 
-      const net = new NeuralNetwork<INumberHash, INumberHash>();
+      const neuralNetwork = new NeuralNetwork<INumberHash, INumberHash>();
 
-      return testTrainer(net, { data: trainingData, errorThresh: 0.001 }).then(
-        () => {
-          for (const data of trainingData) {
-            const output = net.run(data.input);
-            const target = data.output;
-            const outputKey = largestKey(output);
-            const targetKey = largestKey(target);
-            if (!outputKey || !targetKey) fail();
-            expect(outputKey).toBe(targetKey);
-            expect(
-              output[outputKey] < target[targetKey] + wiggle &&
-              output[outputKey] > target[targetKey] - wiggle
-            ).toBeTruthy();
-          }
-        }
-      );
+      await testTrainer(neuralNetwork, { data: trainingData, errorThresh: 0.001 });
+      for (const data of trainingData) {
+        const output = neuralNetwork.run(data.input);
+        const target = data.output;
+        const outputKey = largestKey(output);
+        const targetKey = largestKey(target);
+        if (!outputKey || !targetKey) fail();
+        expect(outputKey).toBe(targetKey);
+        expect(
+          output[outputKey] < target[targetKey] + wiggle &&
+          output[outputKey] > target[targetKey] - wiggle
+        ).toBeTruthy();
+      }
     });
   });
   describe('bitwise functions', () => {
@@ -128,18 +126,16 @@ describe('TrainStream', () => {
             output: [0],
           },
         ];
-        const net = new NeuralNetwork<number[], number[]>();
+        const neuralNetwork = new NeuralNetwork<number[], number[]>();
+        await testTrainer(neuralNetwork, { data: not, errorThresh });
+        for (const i of not) {
+          const output = neuralNetwork.run(i.input)[0];
+          const target = i.output[0];
 
-        return await testTrainer(net, { data: not, errorThresh }).then(() => {
-          for (const i of not) {
-            const output = net.run(i.input)[0];
-            const target = i.output[0];
-
-            expect(
-              output < target + wiggle && output > target - wiggle
-            ).toBeTruthy();
-          }
-        });
+          expect(
+            output < target + wiggle && output > target - wiggle
+          ).toBeTruthy();
+        }
       });
 
       it('XOR function', async () => {
@@ -161,18 +157,17 @@ describe('TrainStream', () => {
             output: [0],
           },
         ];
-        const net = new NeuralNetwork<number[], number[]>();
+        const neuralNetwork = new NeuralNetwork<number[], number[]>();
 
-        return await testTrainer(net, { data: xor, errorThresh }).then(() => {
-          for (const i of xor) {
-            const output = net.run(i.input)[0];
-            const target = i.output[0];
+        await testTrainer(neuralNetwork, { data: xor, errorThresh });
+        for (const i of xor) {
+          const output = neuralNetwork.run(i.input)[0];
+          const target = i.output[0];
 
-            expect(
-              output < target + wiggle && output > target - wiggle
-            ).toBeTruthy();
-          }
-        });
+          expect(
+            output < target + wiggle && output > target - wiggle
+          ).toBeTruthy();
+        }
       });
 
       it('OR function', async () => {
@@ -194,18 +189,17 @@ describe('TrainStream', () => {
             output: [1],
           },
         ];
-        const net = new NeuralNetwork<number[], number[]>();
+        const neuralNetwork = new NeuralNetwork<number[], number[]>();
 
-        return await testTrainer(net, { data: or, errorThresh }).then(() => {
-          for (const i of or) {
-            const output = net.run(i.input)[0];
-            const target = i.output[0];
+        await testTrainer(neuralNetwork, { data: or, errorThresh });
+        for (const i of or) {
+          const output = neuralNetwork.run(i.input)[0];
+          const target = i.output[0];
 
-            expect(
-              output < target + wiggle && output > target - wiggle
-            ).toBeTruthy();
-          }
-        });
+          expect(
+            output < target + wiggle && output > target - wiggle
+          ).toBeTruthy();
+        }
       });
 
       it('AND function', async () => {
@@ -227,18 +221,17 @@ describe('TrainStream', () => {
             output: [1],
           },
         ];
-        const net = new NeuralNetwork<number[], number[]>();
+        const neuralNetwork = new NeuralNetwork<number[], number[]>();
 
-        return await testTrainer(net, { data: and, errorThresh }).then(() => {
-          for (const i of and) {
-            const output = net.run(i.input)[0];
-            const target = i.output[0];
+        await testTrainer(neuralNetwork, { data: and, errorThresh });
+        for (const i of and) {
+          const output = neuralNetwork.run(i.input)[0];
+          const target = i.output[0];
 
-            expect(
-              output < target + wiggle && output > target - wiggle
-            ).toBeTruthy();
-          }
-        });
+          expect(
+            output < target + wiggle && output > target - wiggle
+          ).toBeTruthy();
+        }
       });
     });
 
@@ -269,45 +262,82 @@ describe('TrainStream', () => {
             output: { product: 1 },
           },
         ];
-        const net = new NeuralNetwork<MathInput, MathOutput>();
+        const neuralNetwork = new NeuralNetwork<MathInput, MathOutput>();
 
-        return await testTrainer(net, { data: and, errorThresh }).then(() => {
-          for (const i of and) {
-            const output = net.run(i.input).product;
-            const target = i.output.product;
+        await testTrainer(neuralNetwork, { data: and, errorThresh });
+        for (const i of and) {
+          const output = neuralNetwork.run(i.input).product;
+          const target = i.output.product;
 
-            expect(
-              output < target + wiggle && output > target - wiggle
-            ).toBeTruthy();
-          }
-        });
+          expect(
+            output < target + wiggle && output > target - wiggle
+          ).toBeTruthy();
+        }
       });
     });
   });
 
   describe('RNNTimeStep compatibility', () => {
-    it('can average error for array,array, counting forwards and backwards', async () => {
-      const iterations = 50;
+    it('can average error for array,number, counting forwards and backwards', async () => {
+      const iterations = 100;
       const data = [
         [0.1, 0.2, 0.3, 0.4, 0.5],
         [0.2, 0.3, 0.4, 0.5, 0.6],
         [0.3, 0.4, 0.5, 0.6, 0.7],
         [0.4, 0.5, 0.6, 0.7, 0.8],
         [0.5, 0.6, 0.7, 0.8, 0.9],
+        [0.9, 0.8, 0.7, 0.6, 0.5],
+        [0.8, 0.7, 0.6, 0.5, 0.4],
+        [0.7, 0.6, 0.5, 0.4, 0.3],
+        [0.6, 0.5, 0.4, 0.3, 0.2],
+        [0.5, 0.4, 0.3, 0.2, 0.1],
       ];
-      const net = new LSTMTimeStep({ hiddenLayers: [10] });
+      const neuralNetwork = new LSTMTimeStep({ hiddenLayers: [15] });
 
-      return await testTrainer(net, { data, iterations }).then((info) => {
-        expect(info.error).toBeLessThan(0.05);
-        expect(info.iterations).toBe(iterations);
+      const info = await testTrainer(neuralNetwork, { data, iterations });
+      expect(info.error).toBeLessThan(0.05);
+      expect(info.iterations).toBe(iterations);
 
-        for (let i = 0; i < data.length; i++) {
-          const value = data[i];
-          expect(net.run(value.slice(0, 4)).toFixed(1)).toBe(
-            value[4].toFixed(1)
-          );
-        }
+      for (let i = 0; i < data.length; i++) {
+        const value = data[i];
+        expect(neuralNetwork.run(value.slice(0, 4)).toFixed(1)).toBe(
+          value[4].toFixed(1)
+        );
+      }
+    });
+  });
+
+  describe('RNN compatibility', () => {
+    it('can average error for array,string, counting forwards and backwards', async () => {
+      const iterations = 500;
+      const data = [
+        '12345',
+        '23456',
+        '34567',
+        '45678',
+        '56789',
+        '98765',
+        '87654',
+        '76543',
+        '65432',
+        '54321',
+      ].map(v => v.split(''));
+      const neuralNetwork = new LSTM({
+        hiddenLayers: [10],
+        dataFormatter: new DataFormatter(data),
       });
+
+      const info = await testTrainer(neuralNetwork, { data, iterations });
+      expect(info.error).toBeLessThan(0.05);
+      expect(info.iterations).toBe(iterations);
+
+      for (let i = 0; i < data.length; i++) {
+        const value = data[i];
+        const output = neuralNetwork.run([value[0], value[1], value[2], value[3]]);
+        expect(output).toBe(
+          value[4]
+        );
+      }
     });
   });
 });

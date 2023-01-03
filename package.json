@@ -1,10 +1,10 @@
 {
   "peerDependencies": {
-    "brain.js": "^2.0.0-beta.5"
+    "brain.js": "^2.0.0-beta.18"
   },
   "name": "train-stream",
   "description": "A node train stream for brain.js",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/src",
@@ -33,8 +33,8 @@
   },
   "homepage": "https://github.com/BrainJS/train-stream.git)#readme",
   "dependencies": {
-    "brain.js": "^2.0.0-beta.5",
-    "jest": "^27.5.1"
+    "brain.js": "^2.0.0-beta.18",
+    "gpu.js": "^2.16.0"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^21.0.2",
@@ -44,6 +44,7 @@
     "@types/jest": "^27.4.1",
     "@types/node": "^17.0.21",
     "@typescript-eslint/eslint-plugin": "^5.14.0",
+    "jest": "^27.5.1",
     "npm-run-all": "^4.1.5",
     "rollup": "^2.70.0",
     "ts-jest": "^27.1.3",

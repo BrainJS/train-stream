@@ -24,7 +24,7 @@ export interface ITrainStreamNetwork<
   verifyIsInitialized: (data: FormattedType[]) => void;
 }
 
-interface ITrainStreamOptions<Network> extends INeuralNetworkTrainOptions {
+interface ITrainStreamOptions<Network> {
   neuralNetwork: Network;
   floodCallback?: () => void;
   doneTrainingCallback?: (stats: { error: number; iterations: number }) => void;
@@ -36,7 +36,8 @@ export class TrainStream<
     Parameters<Network['trainPattern']>[0],
     Network['trainOpts']
     >
-  > extends Writable {
+  > {
+  writable: Writable;
   neuralNetwork: Network;
 
   dataFormatDetermined: boolean;
@@ -52,12 +53,46 @@ export class TrainStream<
   logPeriod: number;
   callbackPeriod: number;
   callback?: (status: { iterations: number; error: number }) => void;
-  firstDatum: Array<Parameters<Network['addFormat']>[0]> | undefined;
+  firstDatum: Parameters<Network['addFormat']>[0] | undefined;
 
-  constructor(options: Partial<ITrainStreamOptions<Network>>) {
-    super({
+  constructor(options: Partial<ITrainStreamOptions<Network>> & Partial<INeuralNetworkTrainOptions>) {
+    this.writable = new Writable({
       objectMode: true,
     });
+    this.writable._write = (
+      chunk: Parameters<Network['addFormat']>[0],
+      enc: BufferEncoding,
+      next: (error?: Error | null) => void
+    ) => {
+        if (!chunk) {
+        // check for the end of one iteration of the stream
+        this.writable.emit('finish');
+        return next();
+      }
+
+      if (!this.dataFormatDetermined) {
+        this.size++;
+        this.neuralNetwork.addFormat(chunk);
+
+        if (this.firstDatum === undefined) {
+          this.firstDatum = chunk;
+        }
+
+        return next();
+      }
+
+      this.count++;
+
+      const data = this.neuralNetwork.formatData([chunk]);
+      const error = this.neuralNetwork.trainPattern(data[0], true);
+
+      if (error !== null) {
+        this.sum += error;
+      }
+
+      // tell the Readable Stream that we are ready for more data
+      next();
+    };
 
     // require the neuralNetwork
     if (!options.neuralNetwork) {
@@ -68,10 +103,10 @@ export class TrainStream<
 
     const { neuralNetwork } = options;
     // inherit trainOpts settings from neuralNetwork
-    neuralNetwork.updateTrainingOptions(options);
+    (neuralNetwork as Network).updateTrainingOptions(options);
     const trainOpts = neuralNetwork?.trainOpts as ITrainStreamTrainOptions; // just updated from above line
 
-    this.neuralNetwork = neuralNetwork;
+    this.neuralNetwork = neuralNetwork as Network;
     this.dataFormatDetermined = false;
     this.i = 0; // keep track of internal iterations
     this.size = 0;
@@ -85,47 +120,12 @@ export class TrainStream<
     this.log = trainOpts.log;
     this.logPeriod = trainOpts.logPeriod;
     this.callbackPeriod = trainOpts.callbackPeriod;
-    this.on('finish', this.finishStreamIteration.bind(this));
+    this.writable.on('finish', this.finishStreamIteration.bind(this));
     this.callback = trainOpts.callback;
   }
 
   endInputs(): void {
-    this.write(false);
-  }
-
-  _write(
-    chunk: Array<Parameters<Network['addFormat']>[0]>,
-    enc: BufferEncoding,
-    next: (error?: Error | null) => void
-  ): void {
-    if (!chunk) {
-      // check for the end of one iteration of the stream
-      this.emit('finish');
-      return next();
-    }
-
-    if (!this.dataFormatDetermined) {
-      this.size++;
-      this.neuralNetwork.addFormat(chunk);
-
-      if (this.firstDatum === undefined) {
-        this.firstDatum = chunk;
-      }
-
-      return next();
-    }
-
-    this.count++;
-
-    const data = this.neuralNetwork.formatData([chunk]);
-    const error = this.neuralNetwork.trainPattern(data[0], true) as number;
-
-    if (error !== null) {
-      this.sum += error;
-    }
-
-    // tell the Readable Stream that we are ready for more data
-    next();
+    this.writable.write(false);
   }
 
   finishStreamIteration(): void {
