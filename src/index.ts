@@ -34,7 +34,7 @@ export class TrainStream<
   Network extends ITrainStreamNetwork<
     Parameters<Network['addFormat']>[0],
     Parameters<Network['trainPattern']>[0],
-    Network['trainOpts']
+    Partial<Network['trainOpts']>
     >
   > {
   writable: Writable;

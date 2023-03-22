@@ -4,10 +4,10 @@
   },
   "name": "train-stream",
   "description": "A node train stream for brain.js",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
-  "types": "dist/src",
+  "types": "src",
   "scripts": {
     "test": "jest",
     "coverage": "jest --coverage --coverage-provider v8 && codecov",
