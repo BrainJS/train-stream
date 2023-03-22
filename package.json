@@ -4,7 +4,7 @@
   },
   "name": "train-stream",
   "description": "A node train stream for brain.js",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "src",

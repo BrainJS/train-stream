@@ -15,7 +15,7 @@ const trainingStream = new TrainStream({
    * Write training data to the stream. Called on each training iteration.
    */
   floodCallback: function () {
-    readInputs(trainingStream, xor);
+    readInputs(xor);
   },
 
   /**
@@ -39,13 +39,13 @@ const trainingStream = new TrainStream({
 });
 
 // kick it off
-readInputs(trainingStream, xor);
+readInputs(xor);
 
-function readInputs(stream: TrainStream, data: string | any[]) {
+function readInputs(data: string | any[]) {
   for (let i = 0; i < data.length; i++) {
-    stream.write(data[i]);
+    trainingStream.write(data[i]);
   }
 
   // let it know we've reached the end of the inputs
-  stream.endInputs();
+  trainingStream.endInputs();
 }
